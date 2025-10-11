@@ -1,0 +1,83 @@
+{
+  "name": "夜游神 Pualy",
+  "description": "阿皮本地自用 Chrome 插件",
+  "version": "1.0",
+  "manifest_version": 3,
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "js": [
+        "src/content_script.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://*.zhihu.com/*"
+      ],
+      "css": [
+        "styles/cover.css"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://*.huya.com/*"
+      ],
+      "css": [
+        "styles/cover.css"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs",
+    "scripting",
+    "declarativeNetRequest",
+    "contextMenus"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "rules_1",
+        "enabled": true,
+        "path": "rules_1.json"
+      }
+    ]
+  },
+  "action": {
+    "default_popup": "pages/popup.html",
+    "default_icon": {
+      "16": "assets/avatar.png",
+      "32": "assets/avatar.png",
+      "48": "assets/avatar.png",
+      "128": "assets/avatar.png"
+    }
+  },
+  "icons": {
+    "16": "assets/avatar.png",
+    "32": "assets/avatar.png",
+    "48": "assets/avatar.png",
+    "128": "assets/avatar.png"
+  },
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "commands": {
+    "save_selected_text": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "保存选中文本到词汇表"
+    }
+  }
+}

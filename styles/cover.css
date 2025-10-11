@@ -1,0 +1,30 @@
+/* 覆盖站点样式：仅当 html.adblock-enabled 存在时生效 */
+html.adblock-enabled {
+}
+html.adblock-enabled .css-1qyytj7,
+html.adblock-enabled .TopstoryItem--advertCard,
+html.adblock-enabled .AppHeader,
+html.adblock-enabled .Pc-word {
+  display: none !important;
+}
+
+/* 虎牙直播去广告（在开关开启时） */
+html.adblock-enabled .room-footer,
+html.adblock-enabled .room-sidebar-top,
+html.adblock-enabled .room-mod-ggTop,
+html.adblock-enabled .duya-header,
+html.adblock-enabled .mod-sidebar,
+html.adblock-enabled .room-hd,
+html.adblock-enabled .diy-comp,
+html.adblock-enabled .match-top,
+html.adblock-enabled .match-nav {
+  display: none !important;
+}
+html.adblock-enabled #player-gift-wrap {
+  display: none !important;
+}
+html.adblock-enabled .main-room {
+  background-image: none !important;
+}
+
+

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../styles/ui.css" />
+  </head>
+  <body class="popup-root">
+    <div class="popup-actions">
+      <button id="openBoard" class="btn" title="打开词汇学习表">词汇表</button>
+    </div>
+    <div class="settings-list">
+      <div class="setting">
+        <div class="setting-label">主题</div>
+        <select id="themeSelect" class="input" style="width: 160px;">
+          <option value="cyan">电光青蓝</option>
+          <option value="purple">霓虹紫</option>
+          <option value="pink">赛博粉</option>
+          <option value="green">荧光绿</option>
+          <option value="slate">极夜蓝</option>
+        </select>
+      </div>
+      <div class="setting">
+        <div class="setting-label">去广告（阅读更纯净）</div>
+        <label class="switch">
+          <input id="switchAdblock" type="checkbox" />
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+      <div class="setting">
+        <div class="setting-label">小红书自动登录</div>
+        <label class="switch">
+          <input id="switchXhs" type="checkbox" />
+          <span class="switch-slider"></span>
+        </label>
+      </div>
+    </div>
+    <script src="../src/popup.js"></script>
+  </body>
+  </html>
+
+
