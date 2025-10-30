@@ -176,11 +176,11 @@ const handleSaveSelection = async (tabId, url, title, selectedTextRaw) => {
   if (!text) return;
   const { [STORAGE_KEY_SELECTIONS]: list = [] } = await chrome.storage.local.get(STORAGE_KEY_SELECTIONS);
 
-  if (!isSentence(text)) {
+    if (!isSentence(text)) {
     // 单词/词组：直接保存为词条（word）
     if (hasWord(list, text)) { await sendToast(tabId, '单词已存在'); return; }
     const now = Date.now();
-    const item = { id: `${now}-${Math.random().toString(36).slice(2,8)}`, word: text.slice(0,200), sentences: [], url: url || '', title: title || '', createdAt: now };
+      const item = { id: `${now}-${Math.random().toString(36).slice(2,8)}`, word: text.slice(0,200), sentences: [], reviewTimes: [], url: url || '', title: title || '', createdAt: now };
     await chrome.storage.local.set({ [STORAGE_KEY_SELECTIONS]: [item, ...list] });
     await sendToast(tabId, '已保存到词汇表');
     return;
@@ -220,7 +220,7 @@ const handleSaveSelection = async (tabId, url, title, selectedTextRaw) => {
   if (existing) {
     await attachSentence(existing);
   } else {
-    const item = { id: `${now}-${Math.random().toString(36).slice(2,8)}`, word: normalize(pick).slice(0,200), sentences: [text.slice(0,500)], url: url || '', title: title || '', createdAt: now };
+    const item = { id: `${now}-${Math.random().toString(36).slice(2,8)}`, word: normalize(pick).slice(0,200), sentences: [text.slice(0,500)], reviewTimes: [], url: url || '', title: title || '', createdAt: now };
     await chrome.storage.local.set({ [STORAGE_KEY_SELECTIONS]: [item, ...list] });
     await sendToast(tabId, `已保存到词汇表，并将例句关联到 ${item.word}`);
   }

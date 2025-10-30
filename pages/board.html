@@ -19,7 +19,7 @@
   </head>
   <body>
     <div class="toolbar">
-      <input id="search" class="search input" placeholder="搜索单词/例句/来源" name="xhs_board_search" type="search" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+      <input id="search" class="search input" placeholder="搜索单词" name="xhs_board_search" type="search" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
       <select id="sortSelect" class="input" style="width: 180px;">
         <option value="time_desc">添加时间：新->旧</option>
         <option value="time_asc">添加时间：旧->新</option>
@@ -31,9 +31,20 @@
       <button id="clearAll" class="btn btn-danger">清空词库</button>
     </div>
 
+    <div id="historyReviewPanel" class="review-panel" style="display:none;">
+      <div class="review-header">历史待复习</div>
+      <ul id="historyReviewList" class="review-list"></ul>
+    </div>
+
+    <div id="reviewPanel" class="review-panel" style="display:none;">
+      <div class="review-header">今日待复习</div>
+      <ul id="reviewList" class="review-list"></ul>
+    </div>
+
     <!-- Modal: Clear All -->
     <div id="modalClear" class="modal-overlay" style="display:none;">
       <div class="modal">
+        <button class="modal-close" id="clearClose">✕</button>
         <div class="modal-body">
           <div class="modal-title">清空全部</div>
           <div class="modal-content">
@@ -41,7 +52,6 @@
             <div class="modal-tip">为防误操作，请输入“清空”两个字后再确认。</div>
           </div>
           <div class="modal-actions">
-            <button id="clearCancel" class="btn">取消</button>
             <button id="clearConfirm" class="btn btn-danger">确认清空</button>
           </div>
         </div>
@@ -51,6 +61,7 @@
     <!-- Modal: Sentence Note (Markdown) -->
     <div id="modalNote" class="modal-overlay" style="display:none;">
       <div class="modal" style="width: 720px; max-width: calc(100% - 40px)">
+        <button class="modal-close" id="noteClose">✕</button>
         <div class="modal-body">
           <div class="modal-title">例句详细解析（Markdown）</div>
           <div class="modal-content">
@@ -58,8 +69,9 @@
             <textarea id="noteEditor" class="input modal-textarea" placeholder="使用 Markdown 编写解析...（如：单词高亮、语法点、替换、近义词等）"></textarea>
           </div>
           <div class="modal-actions">
-            <button id="noteCancel" class="btn">取消</button>
             <button id="noteView" class="btn">预览</button>
+            <button id="noteEdit" class="btn" style="display:none;">编辑</button>
+            <button id="noteDelete" class="btn btn-danger" style="display:none;">删除解析</button>
             <button id="noteSave" class="btn btn-primary">保存</button>
           </div>
         </div>
@@ -69,33 +81,28 @@
     <!-- Modal: Add Word -->
     <div id="modalAddWord" class="modal-overlay" style="display:none;">
       <div class="modal">
+        <button class="modal-close" id="addWordClose">✕</button>
         <div class="modal-body">
           <div class="modal-title">新增单词</div>
           <div class="modal-content">
             <input id="addWordInput" class="input modal-input" placeholder="请输入英文单词，如 algorithm" />
           </div>
           <div class="modal-actions">
-            <button id="addWordCancel" class="btn">取消</button>
             <button id="addWordConfirm" class="btn btn-primary">保存</button>
           </div>
         </div>
       </div>
     </div>
-    <div class="table-wrap">
-      <table class="table-sticky">
-        <thead>
-          <tr>
-            <th style="width: 200px">单词</th>
-            <th>例句</th>
-            <th style="width: 20%">来源</th>
-            <th style="width: 160px">添加时间</th>
-            <th style="width: 120px">操作</th>
-          </tr>
-        </thead>
-        <tbody id="list"></tbody>
-      </table>
+    <!-- 词汇卡片容器 -->
+    <div class="vocab-container">
+      <div id="list" class="vocab-grid"></div>
+      <div id="empty" class="empty-state" style="display:none;">
+        <div class="empty-icon">📚</div>
+        <div class="empty-title">暂无词汇数据</div>
+        <div class="empty-description">开始添加你的第一个单词吧！</div>
+        <button id="addFirstWord" class="btn btn-primary">添加单词</button>
+      </div>
     </div>
-    <div id="empty" class="empty" style="display:none;">暂无数据</div>
 
     <script src="../src/board.js"></script>
   </body>
