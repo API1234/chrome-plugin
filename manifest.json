@@ -34,6 +34,16 @@
         "styles/cover.css"
       ],
       "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://www.baidu.com/*"
+      ],
+      "js": [
+        "src/board.js"
+      ],
+      "run_at": "document_end",
+      "all_frames": false
     }
   ],
   "permissions": [
@@ -70,6 +80,18 @@
   },
   "host_permissions": [
     "*://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "pages/board.html",
+        "styles/*.css",
+        "src/*.js"
+      ],
+      "matches": [
+        "*://www.baidu.com/*"
+      ]
+    }
   ],
   "commands": {
     "save_selected_text": {

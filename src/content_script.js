@@ -203,4 +203,65 @@ if (location.hostname.includes("customer") || location.hostname.includes("creato
   } catch (e) {}
 }
 
+// 百度页面替换为 board.html
+if (location.hostname === "www.baidu.com") {
+  const replaceWithBoard = async () => {
+    try {
+      // 获取扩展的基础 URL
+      const extensionBaseUrl = chrome.runtime.getURL("");
+      
+      // 获取 board.html 内容
+      const boardHtmlUrl = chrome.runtime.getURL("pages/board.html");
+      const response = await fetch(boardHtmlUrl);
+      let htmlContent = await response.text();
+      
+      // 先替换相对路径为绝对路径（在解析前）
+      htmlContent = htmlContent.replace(
+        /href="\.\.\/styles\/([^"]+)"/g,
+        `href="${extensionBaseUrl}styles/$1"`
+      );
+      htmlContent = htmlContent.replace(
+        /src="\.\.\/src\/([^"]+)"/g,
+        `src="${extensionBaseUrl}src/$1"`
+      );
+      
+      // 使用 DOMParser 解析 HTML
+      const parser = new DOMParser();
+      const boardDoc = parser.parseFromString(htmlContent, "text/html");
+      
+      // 清空当前页面的 body 和 head
+      document.body.innerHTML = "";
+      document.head.innerHTML = "";
+      
+      // 复制 board.html 的 head 内容（除了 script）
+      const boardHead = boardDoc.head;
+      for (const node of boardHead.children) {
+        if (node.tagName === "SCRIPT") continue; // 跳过 script，后面单独处理
+        const cloned = node.cloneNode(true);
+        document.head.appendChild(cloned);
+      }
+      
+      // 复制 board.html 的 body 内容
+      document.body.innerHTML = boardDoc.body.innerHTML;
+      
+      // board.js 已经通过 manifest.json 配置为独立的 content script
+      // 但为了确保执行顺序，我们需要等待一下再触发 DOMContentLoaded
+      // 使用一个标志来确保 board.js 知道页面已经准备好
+      window.__boardPageReady = true;
+      
+      // 等待 DOM 准备好后触发 DOMContentLoaded 事件
+      // 延迟一点确保 board.js 已经加载
+      setTimeout(() => {
+        const event = new Event("DOMContentLoaded", { bubbles: true });
+        document.dispatchEvent(event);
+      }, 200);
+    } catch (error) {
+      console.error("替换百度页面失败:", error);
+    }
+  };
+  
+  // 立即执行替换
+  replaceWithBoard();
+}
+
 

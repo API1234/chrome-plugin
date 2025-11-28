@@ -1,9 +1,36 @@
 // 看板：读取与管理右键保存的文本列表
 const STORAGE_KEY_SELECTIONS = "savedSelections";
 
+// 等待页面准备好（如果是在百度页面被替换的情况下）
+const waitForPageReady = () => {
+  return new Promise((resolve) => {
+    // 如果页面已经准备好（有标志或者关键元素已经存在），立即执行
+    if (window.__boardPageReady || document.getElementById("search") || document.readyState === "complete") {
+      resolve();
+      return;
+    }
+    
+    // 否则等待最多 2 秒
+    const maxWait = 2000;
+    const startTime = Date.now();
+    const checkInterval = setInterval(() => {
+      if (window.__boardPageReady || document.getElementById("search") || document.readyState === "complete") {
+        clearInterval(checkInterval);
+        resolve();
+      } else if (Date.now() - startTime > maxWait) {
+        clearInterval(checkInterval);
+        resolve(); // 超时也继续执行
+      }
+    }, 50);
+  });
+};
+
 // 防止重复渲染的标志
 let isUpdatingFromUserAction = false;
 let updateTimeout = null;
+
+// 当前选中的 TAB
+let currentTab = 'all'; // 'all' | 'vocab' | 'review' | 'history'
 
 // 读取存储列表
 const readList = async () => {
@@ -63,6 +90,231 @@ const highlightText = (text, query) => {
   if (!query) return escapeHtml(text);
   const regex = new RegExp(`(${escapeHtml(query)})`, 'gi');
   return escapeHtml(text).replace(regex, '<mark class="search-highlight">$1</mark>');
+};
+
+// 切换 TAB
+const switchTab = async (tab) => {
+  currentTab = tab;
+  updateTabButtons();
+  await chrome.storage.local.set({ selectedTab: tab });
+  await updateDisplay();
+};
+
+// 更新 TAB 按钮状态
+const updateTabButtons = () => {
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  tabButtons.forEach(btn => {
+    if (btn.getAttribute('data-tab') === currentTab) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+};
+
+// 今日待复习列表渲染
+const renderReview = async () => {
+  const panel = document.getElementById('reviewPanel');
+  const ul = document.getElementById('reviewList');
+  if (!panel || !ul) return;
+
+  if (currentTab === 'all' || currentTab === 'review') {
+    panel.style.display = '';
+  }
+
+  const { [STORAGE_KEY_SELECTIONS]: list = [] } = await chrome.storage.local.get(STORAGE_KEY_SELECTIONS);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const startTs = todayStart.getTime();
+  const endTs = startTs + dayMs;
+  const schedule = [1, 3, 7, 15, 30].map((d) => d * dayMs);
+  const isReviewedToday = (reviews = []) => reviews.some((t) => t >= startTs && t < endTs);
+  const isDueToday = (created) => schedule.some((off) => created + off >= startTs && created + off < endTs);
+  let due = list.filter((x) => x.createdAt && isDueToday(x.createdAt));
+
+  // 去重（不区分大小写），保留最早创建
+  const wordMap = new Map();
+  due.forEach((x) => {
+    const wordKey = (x.word || x.text || '').toLowerCase();
+    if (!wordMap.has(wordKey)) {
+      wordMap.set(wordKey, x);
+    } else {
+      const existing = wordMap.get(wordKey);
+      if (x.createdAt < existing.createdAt) {
+        wordMap.set(wordKey, x);
+      }
+    }
+  });
+  due = Array.from(wordMap.values());
+
+  if (!due.length) {
+    ul.innerHTML = `<li class="review-empty">🎉 太棒了！今日暂无待复习项目</li>`;
+    return;
+  }
+
+  const isReviewed = (item) => isReviewedToday(item.reviewTimes);
+
+  const header = panel.querySelector('.review-header');
+  if (header) {
+    const completedCount = due.filter(isReviewed).length;
+    header.innerHTML = `📚 今日待复习 (${completedCount}/${due.length})`;
+  }
+
+  ul.innerHTML = due
+    .map((x) => {
+      const checked = isReviewed(x) ? 'checked' : '';
+      const statusClass = checked ? 'completed' : 'pending';
+      const statusText = checked ? '已完成' : '待复习';
+
+      const reviews = Array.isArray(x.reviewTimes) ? x.reviewTimes.slice().sort((a, b) => a - b) : [];
+      const day = 24 * 60 * 60 * 1000;
+      const scheduleOffsets = [1, 3, 7, 15, 30].map((d) => d * day);
+      let nextDue = null;
+      for (const offset of scheduleOffsets) {
+        const checkpoint = (x.createdAt || 0) + offset;
+        const done = reviews.some((t) => t >= checkpoint);
+        if (!done) {
+          nextDue = checkpoint;
+          break;
+        }
+      }
+
+      return `<li class="review-item ${checked ? 'completed' : ''}" data-id="${x.id}">
+        <div class="review-item-header">
+          <span class="word">${escapeHtml(x.word || x.text || '')}</span>
+          <div class="review-status ${statusClass}">${statusText}</div>
+        </div>
+        <div class="review-item-content">
+          <div class="review-meta">
+            <div class="review-count">${(x.reviewTimes || []).length} 次</div>
+            ${nextDue ? `<div class="review-due">${formatTime(nextDue).split(' ')[0]}</div>` : ''}
+          </div>
+          <input type="checkbox" class="review-done" ${checked}/>
+        </div>
+      </li>`;
+    })
+    .join('');
+};
+
+// 历史待复习列表渲染
+const renderHistoryReview = async () => {
+  const panel = document.getElementById('historyReviewPanel');
+  const ul = document.getElementById('historyReviewList');
+  if (!panel || !ul) return;
+
+  const { [STORAGE_KEY_SELECTIONS]: list = [] } = await chrome.storage.local.get(STORAGE_KEY_SELECTIONS);
+  const dayMs = 24 * 60 * 60 * 1000;
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const startTs = todayStart.getTime();
+  const schedule = [1, 3, 7, 15, 30].map((d) => d * dayMs);
+  const isReviewedAtDay = (reviews = [], cp) => {
+    const start = new Date(cp);
+    start.setHours(0, 0, 0, 0);
+    const s = start.getTime();
+    const e = s + dayMs;
+    return reviews.some((t) => t >= s && t < e);
+  };
+
+  const items = [];
+  for (const x of list) {
+    const created = x.createdAt || 0;
+    if (!created) continue;
+    const reviews = Array.isArray(x.reviewTimes) ? x.reviewTimes : [];
+    for (const off of schedule) {
+      const cp = created + off;
+      if (cp < startTs && !isReviewedAtDay(reviews, cp)) {
+        items.push({ id: x.id, word: x.word || x.text || '', cp, reviewCount: reviews.length });
+      }
+    }
+  }
+
+  const wordMap = new Map();
+  items.forEach((item) => {
+    const wordKey = item.word.toLowerCase();
+    if (!wordMap.has(wordKey)) {
+      wordMap.set(wordKey, item);
+    } else {
+      const existing = wordMap.get(wordKey);
+      if (item.cp < existing.cp) {
+        wordMap.set(wordKey, item);
+      }
+    }
+  });
+  const uniqueItems = Array.from(wordMap.values());
+
+  if (currentTab === 'all' || currentTab === 'history') {
+    panel.style.display = uniqueItems.length ? '' : 'none';
+  }
+
+  if (!uniqueItems.length) {
+    ul.innerHTML = `<li class="review-empty">🎉 太棒了！暂无历史待复习项目</li>`;
+    return;
+  }
+
+  const header = panel.querySelector('.review-header');
+  if (header) {
+    header.innerHTML = `📅 历史待复习 (${uniqueItems.length} 项)`;
+  }
+
+  ul.innerHTML = uniqueItems
+    .sort((a, b) => a.cp - b.cp)
+    .map(({ id, word, cp, reviewCount }) => {
+      const dateStr = new Date(cp).toISOString().slice(0, 10);
+      const daysOverdue = Math.floor((startTs - cp) / dayMs);
+      return `<li class="review-item" data-id="${id}" data-cp="${cp}">
+        <div class="review-item-header">
+          <span class="word">${escapeHtml(word)}</span>
+          <div class="review-status pending">逾期 ${daysOverdue} 天</div>
+        </div>
+        <div class="review-item-content">
+          <div class="review-meta">
+            <div class="review-count">${reviewCount} 次</div>
+            <div class="review-due">应于 ${dateStr}</div>
+          </div>
+          <input type="checkbox" class="history-review-done"/>
+        </div>
+      </li>`;
+    })
+    .join('');
+};
+
+// 根据当前 TAB 更新显示
+const updateDisplay = async () => {
+  const vocabContainer = document.querySelector('.vocab-container');
+  const reviewPanel = document.getElementById('reviewPanel');
+  const historyReviewPanel = document.getElementById('historyReviewPanel');
+  
+  // 根据 TAB 显示/隐藏内容
+  switch (currentTab) {
+    case 'all':
+      vocabContainer.style.display = '';
+      reviewPanel.style.display = '';
+      historyReviewPanel.style.display = '';
+      await render();
+      await renderReview();
+      await renderHistoryReview();
+      break;
+    case 'vocab':
+      vocabContainer.style.display = '';
+      reviewPanel.style.display = 'none';
+      historyReviewPanel.style.display = 'none';
+      await render();
+      break;
+    case 'review':
+      vocabContainer.style.display = 'none';
+      reviewPanel.style.display = '';
+      historyReviewPanel.style.display = 'none';
+      await renderReview();
+      break;
+    case 'history':
+      vocabContainer.style.display = 'none';
+      reviewPanel.style.display = 'none';
+      historyReviewPanel.style.display = '';
+      await renderHistoryReview();
+      break;
+  }
 };
 
 // 渲染表格
@@ -179,7 +431,23 @@ const render = async () => {
     .join("");
 };
 
-document.addEventListener("DOMContentLoaded", async () => {
+// 等待页面准备好后再执行
+waitForPageReady().then(() => {
+  // 如果 DOMContentLoaded 已经触发，直接执行初始化
+  if (document.readyState === "complete" || document.readyState === "interactive") {
+    initializeBoard();
+  } else {
+    // 否则等待 DOMContentLoaded
+    document.addEventListener("DOMContentLoaded", initializeBoard, { once: true });
+    // 如果已经加载完成，立即触发
+    if (document.readyState !== "loading") {
+      const event = new Event("DOMContentLoaded", { bubbles: true });
+      document.dispatchEvent(event);
+    }
+  }
+});
+
+const initializeBoard = async () => {
   // 应用主题并监听切换
   const applyTheme = (value) => {
     const cls = `theme-${value}`;
@@ -196,17 +464,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  await render();
-  await renderReview();
-  await renderHistoryReview();
+  // 初始化 TAB 切换
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.getAttribute('data-tab');
+      switchTab(tab);
+    });
+  });
+  
+  // 读取保存的 TAB 选择
+  const { selectedTab } = await chrome.storage.local.get('selectedTab');
+  if (selectedTab) {
+    currentTab = selectedTab;
+    updateTabButtons();
+  }
+  
+  await updateDisplay();
   const searchEl = document.getElementById("search");
   if (searchEl) {
-    searchEl.addEventListener("input", render);
+    searchEl.addEventListener("input", () => {
+      if (currentTab === 'all' || currentTab === 'vocab') {
+        render();
+      }
+    });
     // 点击原生 clear 按钮（type=search 的 ×）会触发 search 事件
-    searchEl.addEventListener("search", render);
-    searchEl.addEventListener("change", render);
+    searchEl.addEventListener("search", () => {
+      if (currentTab === 'all' || currentTab === 'vocab') {
+        render();
+      }
+    });
+    searchEl.addEventListener("change", () => {
+      if (currentTab === 'all' || currentTab === 'vocab') {
+        render();
+      }
+    });
     searchEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") render();
+      if (e.key === "Enter" && (currentTab === 'all' || currentTab === 'vocab')) {
+        render();
+      }
     });
   }
 
@@ -216,13 +512,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     const { vocabSort } = await chrome.storage.local.get('vocabSort');
     if (vocabSort) {
       sortEl.value = vocabSort;
-      await render(); // 应用持久化排序到首次渲染
+      // 应用持久化排序到首次渲染（已在 updateDisplay 中处理）
     }
     sortEl.addEventListener('change', async () => {
       await chrome.storage.local.set({ vocabSort: sortEl.value });
-      render();
-      renderReview();
-      renderHistoryReview();
+      await updateDisplay();
     });
   }
 
@@ -255,9 +549,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("clearConfirm").addEventListener("click", async () => {
     if (clearInput.value !== "清空") return;
     await writeList([]);
-    await render();
-    await renderReview();
-    await renderHistoryReview();
+    await updateDisplay();
     hide(modalClear);
   });
 
@@ -288,9 +580,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const now = Date.now();
     const item = { id: `${now}-${Math.random().toString(36).slice(2, 8)}`, word, sentences: [], reviewTimes: [], url: "", title: "", createdAt: now };
     await writeList([item, ...list]);
-    await render();
-    await renderReview();
-    await renderHistoryReview();
+    await updateDisplay();
     hide(modalAddWord);
   });
 
@@ -332,8 +622,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!val) return;
       item.sentences = normalizeSentences([val, ...(item.sentences || [])]).slice(0, 20);
       await writeList(list);
-      await render();
-      await renderReview();
+      // 只更新当前卡片，避免重新渲染整个列表
+      await updateVocabCard(item);
+      if (currentTab === 'all' || currentTab === 'review') {
+        await renderReview();
+      }
       return;
     }
 
@@ -601,7 +894,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const sentenceKey = key || normalizeSentenceKey((item.sentences||[])[idx]||'');
     if (md) item.notes[sentenceKey] = md; else delete item.notes[sentenceKey];
     await writeList(list);
-    await render();
+    if (currentTab === 'all' || currentTab === 'vocab') {
+      await render();
+    }
     closeNoteModal();
   });
 
@@ -652,7 +947,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (item.notes && item.notes[k]) {
       delete item.notes[k];
       await writeList(list);
-      await render();
+      if (currentTab === 'all' || currentTab === 'vocab') {
+        await render();
+      }
     }
     closeNoteModal();
   });
@@ -671,74 +968,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         clearTimeout(updateTimeout);
       }
       
-      // 只重新渲染主表格
-      render();
-      
+      // 根据当前 TAB 更新显示
+      if (currentTab === 'all' || currentTab === 'vocab') {
+        render();
+      }
       // 完全禁用待复习列表的自动重新渲染，避免抖动
       // 待复习列表只在页面加载时和手动操作时更新
     }
   });
-
-  async function renderReview() {
-    const panel = document.getElementById('reviewPanel');
-    const ul = document.getElementById('reviewList');
-    if (!panel || !ul) return;
-    const { [STORAGE_KEY_SELECTIONS]: list = [] } = await chrome.storage.local.get(STORAGE_KEY_SELECTIONS);
-    const dayMs = 24*60*60*1000;
-    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-    const startTs = todayStart.getTime();
-    const endTs = startTs + dayMs;
-    const schedule = [1,3,7,15,30].map(d=>d*dayMs);
-    const isReviewedToday = (reviews=[]) => reviews.some(t => t >= startTs && t < endTs);
-    const isDueToday = (created) => schedule.some(off => (created + off) >= startTs && (created + off) < endTs);
-    const due = list.filter(x => x.createdAt && isDueToday(x.createdAt));
-    panel.style.display = '';
-    if (!due.length) {
-      ul.innerHTML = `<li class="review-empty">🎉 太棒了！今日暂无待复习项目</li>`;
-      return;
-    }
-    // 计算统计信息
-    const completedCount = due.filter(x => isReviewedToday(x.reviewTimes)).length;
-    const totalCount = due.length;
-    const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-    
-    // 更新标题显示进度
-    const header = panel.querySelector('.review-header');
-    if (header) {
-      header.innerHTML = `📚 今日待复习 (${completedCount}/${totalCount})`;
-    }
-    
-    ul.innerHTML = due.map(x => {
-      const w = escapeHtml(x.word || x.text || '');
-      const checked = isReviewedToday(x.reviewTimes) ? 'checked' : '';
-      const reviewCount = Array.isArray(x.reviewTimes) ? x.reviewTimes.length : 0;
-      const statusClass = checked ? 'completed' : 'pending';
-      const statusText = checked ? '已完成' : '待复习';
-      
-      // 计算下次复习时间
-      const created = x.createdAt || 0;
-      let nextDue = null;
-      for (const offset of schedule) {
-        const checkpoint = created + offset;
-        const done = (x.reviewTimes || []).some(t => t >= checkpoint);
-        if (!done) { nextDue = checkpoint; break; }
-      }
-      
-      return `<li class="review-item ${checked ? 'completed' : ''}" data-id="${x.id}">
-        <div class="review-item-header">
-          <span class="word">${w}</span>
-          <div class="review-status ${statusClass}">${statusText}</div>
-        </div>
-        <div class="review-item-content">
-          <div class="review-meta">
-            <div class="review-count">${reviewCount} 次</div>
-            ${nextDue ? `<div class="review-due">${formatTime(nextDue).split(' ')[0]}</div>` : ''}
-          </div>
-          <input type="checkbox" class="review-done" ${checked}/>
-        </div>
-      </li>`;
-    }).join('');
-  }
 
   // 更新单个复习卡片的UI
   const updateReviewCardUI = (li, item, checked) => {
@@ -917,66 +1154,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 500);
   });
 
-  async function renderHistoryReview() {
-    const panel = document.getElementById('historyReviewPanel');
-    const ul = document.getElementById('historyReviewList');
-    if (!panel || !ul) return;
-    const { [STORAGE_KEY_SELECTIONS]: list = [] } = await chrome.storage.local.get(STORAGE_KEY_SELECTIONS);
-    const dayMs = 24*60*60*1000;
-    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-    const startTs = todayStart.getTime();
-    const schedule = [1,3,7,15,30].map(d=>d*dayMs);
-    const isReviewedAtDay = (reviews=[], cp) => {
-      const start = new Date(cp); start.setHours(0,0,0,0);
-      const s = start.getTime();
-      const e = s + dayMs;
-      return reviews.some(t => t >= s && t < e);
-    };
-    const items = [];
-    for (const x of list) {
-      const created = x.createdAt || 0;
-      if (!created) continue;
-      const reviews = Array.isArray(x.reviewTimes) ? x.reviewTimes : [];
-      for (const off of schedule) {
-        const cp = created + off;
-        if (cp < startTs && !isReviewedAtDay(reviews, cp)) {
-          items.push({ id: x.id, word: x.word || x.text || '', cp, reviewCount: reviews.length });
-        }
-      }
-    }
-    panel.style.display = items.length ? '' : 'none';
-    if (!items.length) { 
-      ul.innerHTML = ''; 
-      return; 
-    }
-    
-    // 更新历史待复习标题
-    const header = panel.querySelector('.review-header');
-    if (header) {
-      header.innerHTML = `📅 历史待复习 (${items.length} 项)`;
-    }
-    
-    ul.innerHTML = items
-      .sort((a,b)=>a.cp-b.cp)
-      .map(({id, word, cp, reviewCount}) => {
-        const w = escapeHtml(word);
-        const dateStr = new Date(cp).toISOString().slice(0,10);
-        const daysOverdue = Math.floor((startTs - cp) / dayMs);
-        return `<li class="review-item" data-id="${id}" data-cp="${cp}">
-          <div class="review-item-header">
-            <span class="word">${w}</span>
-            <div class="review-status pending">逾期 ${daysOverdue} 天</div>
-          </div>
-          <div class="review-item-content">
-            <div class="review-meta">
-              <div class="review-count">${reviewCount} 次</div>
-              <div class="review-due">应于 ${dateStr}</div>
-            </div>
-            <input type="checkbox" class="history-review-done"/>
-          </div>
-        </li>`;
-      }).join('');
-  }
-});
+};
 
 

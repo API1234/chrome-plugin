@@ -392,6 +392,51 @@
 
 .toolbar { display: flex; align-items: center; gap: 8px; }
 
+/* TAB 导航样式 */
+.tab-nav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--ui-border);
+  padding-bottom: 0;
+}
+
+.tab-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--ui-muted);
+  padding: 10px 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.tab-btn:hover {
+  color: var(--ui-fg);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.tab-btn.active {
+  color: var(--ui-primary);
+  border-bottom-color: var(--ui-primary);
+  font-weight: 600;
+}
+
+.tab-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ui-primary);
+}
+
 /* Popup */
 body { background: var(--ui-bg); color: var(--ui-fg); }
 .popup-actions { display: flex; gap: 8px; padding: 10px; }
