@@ -753,6 +753,65 @@ body { background: var(--ui-bg); color: var(--ui-fg); }
   font-weight: 600;
 }
 
+/* 关联词区域 */
+.vocab-related {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(0, 229, 255, 0.05);
+  border: 1px solid rgba(0, 229, 255, 0.15);
+  border-radius: 12px;
+  margin-top: 8px;
+}
+
+.vocab-related-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vocab-related-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vocab-related-word {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--ui-bg);
+  border: 1px solid var(--ui-border);
+  border-radius: 16px;
+  font-size: 13px;
+  color: var(--ui-fg);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.vocab-related-word:hover {
+  background: var(--ui-primary);
+  color: #0b0f14;
+  border-color: var(--ui-primary);
+  transform: translateY(-1px);
+}
+
+.vocab-related-word.in-local {
+  border-color: var(--ui-primary);
+  background: rgba(0, 229, 255, 0.1);
+}
+
+.vocab-related-word.not-in-local {
+  border-style: dashed;
+  opacity: 0.8;
+}
+
+.vocab-related-word.not-in-local:hover {
+  opacity: 1;
+}
+
 /* 复习数据 */
 .review-stats {
   display: flex;
