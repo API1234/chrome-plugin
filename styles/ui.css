@@ -140,7 +140,7 @@
 }
 
 .review-count::before {
-  content: "🔄";
+  content: "↻";
   font-size: 12px;
 }
 
@@ -517,13 +517,26 @@ body { background: var(--ui-bg); color: var(--ui-fg); }
   gap: 12px;
 }
 
+.vocab-word-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .vocab-word {
   font-size: 24px;
   font-weight: 700;
   color: var(--ui-fg);
   line-height: 1.3;
   letter-spacing: 0.5px;
-  flex: 1;
+}
+
+.vocab-phonetic {
+  font-size: 14px;
+  color: var(--ui-muted);
+  font-style: italic;
+  font-family: 'Times New Roman', serif;
 }
 
 .vocab-actions {
@@ -542,6 +555,54 @@ body { background: var(--ui-bg); color: var(--ui-fg); }
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+/* 单词释义区域 */
+.vocab-meanings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 12px;
+  border: 1px solid var(--ui-border);
+}
+
+.vocab-meaning {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vocab-pos {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-primary);
+  background: rgba(0, 229, 255, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  align-self: flex-start;
+}
+
+.vocab-definitions {
+  margin: 0;
+  padding-left: 20px;
+  list-style: decimal;
+  color: var(--ui-fg);
+}
+
+.vocab-definitions li {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 6px;
+  color: var(--ui-fg);
+}
+
+.vocab-definitions li:last-child {
+  margin-bottom: 0;
 }
 
 /* 例句区域 */
@@ -713,7 +774,7 @@ body { background: var(--ui-bg); color: var(--ui-fg); }
 }
 
 .review-stat::before {
-  content: "🔄";
+  content: "↻";
   font-size: 14px;
 }
 

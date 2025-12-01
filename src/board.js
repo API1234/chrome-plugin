@@ -85,6 +85,84 @@ const normalizeSentences = (arr) => {
 
 const normalizeSentenceKey = (s) => (s || "").trim().toLowerCase();
 
+// 词性中文映射
+const partOfSpeechMap = {
+  'noun': '名词',
+  'verb': '动词',
+  'adjective': '形容词',
+  'adverb': '副词',
+  'pronoun': '代词',
+  'preposition': '介词',
+  'conjunction': '连词',
+  'interjection': '感叹词',
+  'article': '冠词',
+  'determiner': '限定词',
+  'numeral': '数词',
+  'auxiliary': '助动词',
+  'modal': '情态动词'
+};
+
+const getPartOfSpeechCN = (pos) => {
+  const lower = (pos || '').toLowerCase();
+  return partOfSpeechMap[lower] || pos;
+};
+
+// 获取单词信息（音标、释义、词性）
+const fetchWordInfo = async (word) => {
+  try {
+    const wordLower = word.trim().toLowerCase();
+    // 使用 Free Dictionary API (https://dictionaryapi.dev/)
+    const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(wordLower)}`);
+    
+    if (!response.ok) {
+      // 如果 API 失败，返回空信息
+      return null;
+    }
+    
+    const data = await response.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      return null;
+    }
+    
+    // 取第一个结果（通常是最常用的）
+    const entry = data[0];
+    
+    // 提取音标（优先美式，其次英式）
+    let phonetic = '';
+    if (entry.phonetic) {
+      phonetic = entry.phonetic;
+    } else if (entry.phonetics && entry.phonetics.length > 0) {
+      // 查找有文本的 phonetics
+      const phoneticObj = entry.phonetics.find(p => p.text) || entry.phonetics[0];
+      phonetic = phoneticObj?.text || '';
+    }
+    
+    // 提取词性和释义
+    const meanings = [];
+    if (entry.meanings && Array.isArray(entry.meanings)) {
+      entry.meanings.forEach(meaning => {
+        if (meaning.partOfSpeech && meaning.definitions && meaning.definitions.length > 0) {
+          // 取前 3 个释义
+          const definitions = meaning.definitions.slice(0, 3).map(def => def.definition);
+          meanings.push({
+            partOfSpeech: meaning.partOfSpeech, // 词性：noun, verb, adjective 等
+            definitions: definitions
+          });
+        }
+      });
+    }
+    
+    return {
+      phonetic: phonetic,
+      meanings: meanings,
+      source: 'dictionaryapi.dev'
+    };
+  } catch (error) {
+    console.warn('获取单词信息失败:', error);
+    return null;
+  }
+};
+
 // 高亮搜索关键词
 const highlightText = (text, query) => {
   if (!query) return escapeHtml(text);
@@ -149,7 +227,7 @@ const renderReview = async () => {
   due = Array.from(wordMap.values());
 
   if (!due.length) {
-    ul.innerHTML = `<li class="review-empty">🎉 太棒了！今日暂无待复习项目</li>`;
+      ul.innerHTML = `<li class="review-empty">🎉 太棒了！今日暂无待复习项目</li>`;
     return;
   }
 
@@ -158,7 +236,7 @@ const renderReview = async () => {
   const header = panel.querySelector('.review-header');
   if (header) {
     const completedCount = due.filter(isReviewed).length;
-    header.innerHTML = `📚 今日待复习 (${completedCount}/${due.length})`;
+      header.innerHTML = `📚 今日待复习 (${completedCount}/${due.length})`;
   }
 
   ul.innerHTML = due
@@ -249,13 +327,13 @@ const renderHistoryReview = async () => {
   }
 
   if (!uniqueItems.length) {
-    ul.innerHTML = `<li class="review-empty">🎉 太棒了！暂无历史待复习项目</li>`;
+      ul.innerHTML = `<li class="review-empty">🎉 太棒了！暂无历史待复习项目</li>`;
     return;
   }
 
   const header = panel.querySelector('.review-header');
   if (header) {
-    header.innerHTML = `📅 历史待复习 (${uniqueItems.length} 项)`;
+      header.innerHTML = `📅 历史待复习 (${uniqueItems.length} 项)`;
   }
 
   ul.innerHTML = uniqueItems
@@ -364,17 +442,37 @@ const render = async () => {
         if (!done) { nextDue = checkpoint; break; }
       }
       
+      // 单词信息
+      const phonetic = item.phonetic || '';
+      const meanings = Array.isArray(item.meanings) ? item.meanings : [];
+      
       return `
         <div class="vocab-card" data-id="${item.id}" style="animation-delay: ${index * 0.1}s">
           <div class="vocab-card-header">
-            <div class="vocab-word">${highlightText(word, q)}</div>
+            <div class="vocab-word-info">
+              <div class="vocab-word">${highlightText(word, q)}</div>
+              ${phonetic ? `<div class="vocab-phonetic">${escapeHtml(phonetic)}</div>` : ''}
+            </div>
             <div class="vocab-actions">
+              <button class="icon-btn refresh-word" title="刷新单词信息">↻</button>
               <button class="icon-btn copy" title="复制">⧉</button>
               <button class="icon-btn delete" title="删除">✕</button>
             </div>
           </div>
           
           <div class="vocab-content">
+            ${meanings.length > 0 ? `
+              <div class="vocab-meanings">
+                ${meanings.map(meaning => `
+                  <div class="vocab-meaning">
+                    <span class="vocab-pos">${escapeHtml(getPartOfSpeechCN(meaning.partOfSpeech))}</span>
+                    <ul class="vocab-definitions">
+                      ${meaning.definitions.map(def => `<li>${escapeHtml(def)}</li>`).join('')}
+                    </ul>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
             <!-- 例句区域 -->
             <div class="vocab-sentences">
               ${sentences
@@ -577,11 +675,37 @@ const initializeBoard = async () => {
     const list = await readList();
     const exists = list.some(x => (x.word || x.text || "").toLowerCase() === word.toLowerCase());
     if (exists) { alert("单词已存在"); return; }
+    
+    // 显示加载状态
+    const confirmBtn = document.getElementById("addWordConfirm");
+    const originalText = confirmBtn.textContent;
+    confirmBtn.textContent = "获取中...";
+    confirmBtn.disabled = true;
+    
+    // 自动获取单词信息
+    const wordInfo = await fetchWordInfo(word);
+    
     const now = Date.now();
-    const item = { id: `${now}-${Math.random().toString(36).slice(2, 8)}`, word, sentences: [], reviewTimes: [], url: "", title: "", createdAt: now };
+    const item = { 
+      id: `${now}-${Math.random().toString(36).slice(2, 8)}`, 
+      word, 
+      sentences: [], 
+      reviewTimes: [], 
+      url: "", 
+      title: "", 
+      createdAt: now,
+      // 添加单词信息
+      phonetic: wordInfo?.phonetic || '',
+      meanings: wordInfo?.meanings || []
+    };
+    
     await writeList([item, ...list]);
     await updateDisplay();
     hide(modalAddWord);
+    
+    // 恢复按钮状态
+    confirmBtn.textContent = originalText;
+    confirmBtn.disabled = false;
   });
 
   document.getElementById("list").addEventListener("click", async (e) => {
@@ -626,6 +750,41 @@ const initializeBoard = async () => {
       await updateVocabCard(item);
       if (currentTab === 'all' || currentTab === 'review') {
         await renderReview();
+      }
+      return;
+    }
+
+    if (btn.classList.contains("refresh-word")) {
+      const word = item.word || item.text || "";
+      if (!word) return;
+      
+      // 显示加载状态
+      const prevText = btn.textContent;
+      btn.textContent = "⏳";
+      btn.disabled = true;
+      
+      try {
+        const wordInfo = await fetchWordInfo(word);
+        if (wordInfo) {
+          item.phonetic = wordInfo.phonetic;
+          item.meanings = wordInfo.meanings;
+          await writeList(list);
+          await render();
+          btn.textContent = "✓";
+          setTimeout(() => {
+            btn.textContent = prevText;
+            btn.disabled = false;
+          }, 1000);
+        } else {
+          alert("未找到该单词的信息");
+          btn.textContent = prevText;
+          btn.disabled = false;
+        }
+      } catch (e) {
+        console.error("刷新单词信息失败:", e);
+        alert("获取单词信息失败，请稍后重试");
+        btn.textContent = prevText;
+        btn.disabled = false;
       }
       return;
     }
@@ -955,8 +1114,48 @@ const initializeBoard = async () => {
   });
 
   // 监听存储变化（其它页面新增/删除时刷新）
-  chrome.storage.onChanged.addListener((changes, area) => {
+  chrome.storage.onChanged.addListener(async (changes, area) => {
     if (area === "local" && changes[STORAGE_KEY_SELECTIONS]) {
+      const newList = changes[STORAGE_KEY_SELECTIONS].newValue || [];
+      const oldList = changes[STORAGE_KEY_SELECTIONS].oldValue || [];
+      
+      // 检测新添加的单词，如果没有音标等信息，自动获取
+      if (newList.length > oldList.length) {
+        const newItems = newList.filter(newItem => {
+          const exists = oldList.some(oldItem => oldItem.id === newItem.id);
+          return !exists && (newItem.word || newItem.text);
+        });
+        
+        // 异步获取单词信息（不阻塞 UI）
+        for (const item of newItems) {
+          // 如果已经有音标或释义，跳过
+          if (item.phonetic || (item.meanings && item.meanings.length > 0)) {
+            continue;
+          }
+          
+          const word = item.word || item.text;
+          if (!word) continue;
+          
+          // 延迟获取，避免频繁请求
+          setTimeout(async () => {
+            const wordInfo = await fetchWordInfo(word);
+            if (wordInfo) {
+              const list = await readList();
+              const targetItem = list.find(x => x.id === item.id);
+              if (targetItem && (!targetItem.phonetic && !targetItem.meanings?.length)) {
+                targetItem.phonetic = wordInfo.phonetic;
+                targetItem.meanings = wordInfo.meanings;
+                await writeList(list);
+                // 如果当前正在显示这个单词，更新显示
+                if (currentTab === 'all' || currentTab === 'vocab') {
+                  await render();
+                }
+              }
+            }
+          }, 500);
+        }
+      }
+      
       // 如果是从用户操作触发的更新，跳过重新渲染
       if (isUpdatingFromUserAction) {
         isUpdatingFromUserAction = false;
