@@ -44,13 +44,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // 打开看板页
-  openBoardBtn.addEventListener("click", async () => {
-    try {
-      const url = chrome.runtime.getURL("pages/board.html");
-      await chrome.tabs.create({ url });
-    } catch (e) {}
-  });
+  // 打开词汇表（已独立部署到 https://llm-api-xi.vercel.app/board）
+  if (openBoardBtn) {
+    openBoardBtn.addEventListener("click", async () => {
+      try {
+        await chrome.tabs.create({ url: "https://llm-api-xi.vercel.app/board" });
+      } catch (e) {}
+    });
+  }
 
   // 初始化主题并监听切换
   const applyTheme = (value) => {
